@@ -31,7 +31,7 @@ struct OpenAIErrorJson: Codable {
 }
 /// Access to ChatGPT API from OpenAI
 public class ChatGPT: NSObject, URLSessionDataDelegate {
-    let defaultSystemMessage = Message(role: "system", content: "You are a helpful assistant.")
+    public var systemMessage = "You are a helpful assistant."
     let openAiApiUrl = URL (string: "https://api.openai.com/v1/chat/completions")!
     let urlSessionConfig: URLSessionConfiguration
     var session: URLSession!
@@ -78,8 +78,8 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
     }
     
     func buildMessageHistory (newPrompt: String) -> [Message] {
-        var prompt = Message(role: "user", content: newPrompt)
-        var requestMessages: [Message] = [defaultSystemMessage]
+        let prompt = Message(role: "user", content: newPrompt)
+        var requestMessages: [Message] = [Message(role: "system", content: systemMessage)]
         requestMessages.append(contentsOf: history)
         requestMessages.append (prompt)
         return requestMessages
