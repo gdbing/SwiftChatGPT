@@ -32,13 +32,15 @@ struct OpenAIErrorJson: Codable {
 /// Access to ChatGPT API from OpenAI
 public class ChatGPT: NSObject, URLSessionDataDelegate {
     public var systemMessage = "You are a helpful assistant."
-    let openAiApiUrl = URL (string: "https://api.openai.com/v1/chat/completions")!
-    let urlSessionConfig: URLSessionConfiguration
-    var session: URLSession!
     public var key: String
-    var history: [Message] = []
-    let decoder = JSONDecoder()
     public var model = "gpt-3.5-turbo"
+    public var temperature: Float = 1.0
+    
+    private let openAiApiUrl = URL (string: "https://api.openai.com/v1/chat/completions")!
+    private let urlSessionConfig: URLSessionConfiguration
+    private var session: URLSession!
+    private let decoder = JSONDecoder()
+    private var history = [Message]()
     
     /// Initializes SwiftChatGPT with an OpenAI API key
     /// - Parameter key: an OpenAI API Key
@@ -87,7 +89,14 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
 
     func startRequest (for input: String, temperature: Float) async -> Result<URLSession.AsyncBytes,OpenAIError> {
         let requestMessages = buildMessageHistory (newPrompt: input)
-        let chatRequest = Request(model: self.model, messages: requestMessages, temperature: temperature, stream: true)
+        return await startRequest(for: requestMessages)
+    }
+    
+    private func startRequest (for messages: [Message], stream: Bool = true) async -> Result<URLSession.AsyncBytes,OpenAIError> {
+        let chatRequest = Request(model: self.model,
+                                  messages: messages,
+                                  temperature: self.temperature,
+                                  stream: stream)
         guard let data = try? JSONEncoder().encode(chatRequest) else {
             return .failure(.serializationError)
         }
@@ -191,6 +200,33 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
                 return nil
             } onComplete: {
                 self.recordInteraction (prompt: input, reply: result)
+            }
+            return .success (reply)
+        case .failure(let error):
+            return .failure (error)
+        }
+    }
+    
+    public func streamChatText (query: String) async -> Result <AsyncThrowingStream<String?,Error>, OpenAIError> {
+        let messages = [
+            Message(role: "system", content: systemMessage),
+            Message(role: "user", content: query)
+        ]
+        return await streamChatText(messages: messages)
+    }
+    
+    public func streamChatText (messages: [Message]) async -> Result <AsyncThrowingStream<String?,Error>, OpenAIError> {
+        switch await startRequest(for: messages) {
+        case .success(let bytes):
+            var result = ""
+            let reply = processPartialReply (bytes: bytes) { response -> String? in
+                if let f = response.choices.first?.delta?.content {
+                    result += f
+                    return f
+                }
+                return nil
+            } onComplete: {
+                
             }
             return .success (reply)
         case .failure(let error):
