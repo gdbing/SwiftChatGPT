@@ -55,15 +55,12 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
     }
     
     public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
-        print ("Got DATA")
         if let str = String (bytes: data, encoding: .utf8) {
             print ("\(str)")
         }
-
     }
     
     public func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive response: URLResponse) async -> URLSession.ResponseDisposition {
-        print ("Another")
         return .allow
     }
 
@@ -205,6 +202,12 @@ public class ChatGPT: NSObject, URLSessionDataDelegate {
         case .failure(let error):
             return .failure (error)
         }
+    }
+    
+    public func streamChatText (queries: [(role: String, content: String)]) async -> Result <AsyncThrowingStream<String?,Error>, OpenAIError> {
+        let messages = queries.map { Message(role: $0.role, content: $0.content) }
+
+        return await streamChatText(messages: messages)
     }
     
     public func streamChatText (query: String) async -> Result <AsyncThrowingStream<String?,Error>, OpenAIError> {
